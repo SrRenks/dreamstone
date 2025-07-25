@@ -26,22 +26,20 @@ logger.handlers.clear()
 handler = RichHandler(rich_tracebacks=True, markup=True)
 logger.addHandler(handler)
 
+LOG_LEVELS = ["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"]
 
-def setup_logging(verbose: bool):
-    if verbose:
-        logger.setLevel(logging.DEBUG)
-    else:
-        logger.setLevel(logging.INFO)
-
+def setup_logging(log_level: str):
+    level = getattr(logging, log_level.upper(), logging.WARNING)
+    logger.setLevel(level)
 
 @app.command()
 def genkey(
     private_path: Path = typer.Option(..., help="Path to save private key PEM"),
     public_path: Path = typer.Option(..., help="Path to save public key PEM"),
     password: Optional[str] = typer.Option(None, help="Password to protect private key. If not given, generates a strong one."),
-    verbose: bool = typer.Option(False, help="Enable verbose logging"),
+    log_level: str = typer.Option("WARNING", help=f"Logging level, one of {LOG_LEVELS}"),
 ):
-    setup_logging(verbose)
+    setup_logging(log_level)
     private_key, public_key = generate_rsa_keypair()
     saved_password = save_rsa_keypair_to_files(
         private_key,
@@ -75,9 +73,9 @@ def encrypt_file(
     ),
     password: Optional[str] = typer.Option(None, help="Password to protect private key PEM"),
     output_file: Path = typer.Option(..., help="Where to save encrypted payload JSON"),
-    verbose: bool = typer.Option(False, help="Enable verbose logging"),
+    log_level: str = typer.Option("WARNING", help=f"Logging level, one of {LOG_LEVELS}"),
 ):
-    setup_logging(verbose)
+    setup_logging(log_level)
 
     if not input_file and not input_data:
         logger.error("You must provide either --input-file or --input-data")
@@ -149,9 +147,9 @@ def decrypt_file(
     private_key_file: Path = typer.Option(..., help="Private key PEM file to decrypt with"),
     password: Optional[str] = typer.Option(None, help="Password for private key PEM (if encrypted)"),
     output_file: Optional[Path] = typer.Option(None, help="Path to save decrypted output (if not given prints to stdout)"),
-    verbose: bool = typer.Option(False, help="Enable verbose logging"),
+    log_level: str = typer.Option("WARNING", help=f"Logging level, one of {LOG_LEVELS}"),
 ):
-    setup_logging(verbose)
+    setup_logging(log_level)
     logger.debug("Loading private key")
     with open(private_key_file, "rb") as f:
         private_key = load_private_key(f.read(), password=password.encode() if password else None)
