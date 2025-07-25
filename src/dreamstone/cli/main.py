@@ -23,7 +23,7 @@ app = typer.Typer()
 logger = logging.getLogger("dreamstone")
 logger.setLevel(logging.INFO)
 logger.handlers.clear()
-handler = RichHandler(rich_tracebacks=True, markup=True)
+handler = RichHandler(rich_tracebacks=True, markup=True, console=sys.stderr)
 logger.addHandler(handler)
 
 LOG_LEVELS = ["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"]
@@ -164,11 +164,16 @@ def decrypt_command(
         ciphertext=payload.ciphertext,
         private_key=private_key,
     )
+
     if output_file:
         Path(output_file).write_bytes(plaintext)
         logger.info(f"Decrypted data saved to {output_file}")
+
     else:
-        sys.stdout.buffer.write(plaintext)
+        try:
+            typer.echo(plaintext.decode("utf-8"))
+        except UnicodeDecodeError:
+            sys.stdout.buffer.write(plaintext)
         logger.info("Decrypted data written to stdout")
 
 
