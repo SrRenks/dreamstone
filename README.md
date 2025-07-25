@@ -17,6 +17,7 @@ Or via pip (when available):
 
 ```bash
 pip install dreamstone
+dreamstone --help
 ```
 
 ---
@@ -26,19 +27,19 @@ pip install dreamstone
 ### Generate RSA key pair
 
 ```bash
-poetry run dreamstone genkey --private-path private.pem --public-path public.pem
+dreamstone genkey --private-path private.pem --public-path public.pem
 ```
 
 ### Encrypt a file
 
 ```bash
-poetry run dreamstone encrypt-file --input-file secrets.txt --public-key-file public.pem --output-file encrypted.json
+dreamstone encrypt-file --input-file secrets.txt --public-key-file public.pem --output-file encrypted.json
 ```
 
 ### Encrypt base64 data and generate keys
 
 ```bash
-poetry run dreamstone encrypt-file \
+dreamstone encrypt-file \
   --input-data "TWluaGEgbWVuc2FnZW0gc2VjcmV0YQ==" \
   --private-key-path private.pem \
   --public-key-path public.pem \
@@ -48,13 +49,13 @@ poetry run dreamstone encrypt-file \
 ### Decrypt file and print to stdout
 
 ```bash
-poetry run dreamstone decrypt-file encrypted.json --private-key-file private.pem --password YOUR_PASSWORD_HERE
+dreamstone decrypt-file encrypted.json --private-key-file private.pem --password YOUR_PASSWORD_HERE
 ```
 
 ### Decrypt file and save output
 
 ```bash
-poetry run dreamstone decrypt-file encrypted.json --private-key-file private.pem --password YOUR_PASSWORD_HERE --output-file decrypted.txt
+dreamstone decrypt-file encrypted.json --private-key-file private.pem --password YOUR_PASSWORD_HERE --output-file decrypted.txt
 ```
 
 ---
