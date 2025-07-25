@@ -32,7 +32,6 @@ def setup_logging(log_level: str):
     level = getattr(logging, log_level.upper(), logging.WARNING)
     logger.setLevel(level)
 
-@app.command("genkey")
 def genkey_command(
     private_path: Path = typer.Option(...,  "--private-path", "-prip", help="Path to save private key PEM"),
     public_path: Path = typer.Option(..., "--public-path", "-pubp", help="Path to save public key PEM"),
@@ -57,7 +56,9 @@ def genkey_command(
             f"Without it you will NOT be able to decrypt.[/yellow]"
         )
 
-@app.command("encrypt")
+app.command("genkey")(genkey_command)
+app.command("gk")(genkey_command)
+
 def encrypt_command(
     input_file: Optional[Path] = typer.Option(None, "--input-file", "-if", help="File to encrypt"),
     input_data: Optional[str] = typer.Option(None, "--input-data", "-id", help="Base64-encoded data to encrypt"),
@@ -142,7 +143,9 @@ def encrypt_command(
 
     logger.info(f"Encrypted payload saved to {output_file}")
 
-@app.command("decrypt")
+app.command("encrypt")(encrypt_command)
+app.command("enc")(encrypt_command)
+
 def decrypt_command(
     encrypted_file: Path = typer.Argument(..., help="Path to encrypted JSON payload"),
     private_key_file: Path = typer.Option(..., "--private-key-file", "-pkf", help="Private key PEM file to decrypt with"),
@@ -177,6 +180,8 @@ def decrypt_command(
             sys.stdout.buffer.write(plaintext)
         logger.info("Decrypted data written to stdout")
 
+app.command("decrypt")(decrypt_command)
+app.command("dec")(decrypt_command)
 
 if __name__ == "__main__":
     app()
