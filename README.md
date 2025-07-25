@@ -1,102 +1,159 @@
 # Dreamstone
 
-Dreamstone is a Python library and CLI tool for asymmetric encryption using RSA and AES-GCM, enabling easy key generation, data encryption, and decryption of files or base64-encoded data.
+**Dreamstone** is a modern Python library and CLI tool for secure hybrid encryption using RSA (asymmetric) + AES-GCM (symmetric). It enables you to easily generate keys, encrypt/decrypt files or base64 data, and handle encrypted payloads as JSON. Usable both as a library and CLI.
+
+---
+
+## Features
+
+- 🔐 RSA + AES-GCM hybrid encryption
+- 🔧 Key generation with password protection (optional)
+- 📁 Encrypt/decrypt files or base64 strings
+- 🧪 Output and input in structured JSON
+- 🧰 CLI with short aliases for scripting
+- 🐍 Easily embeddable in Python apps
 
 ---
 
 ## Installation
 
-Install with Poetry (recommended):
-
 ```bash
 poetry install
 poetry run dreamstone --help
-```
+````
 
-Or via pip (when available):
+For production use (once published):
 
 ```bash
 pip install dreamstone
-dreamstone --help
 ```
 
 ---
 
-## CLI Usage
+## CLI Commands
 
-### Generate RSA key pair
+Each command has long and short versions.
+
+| Command        | Alias | Description                    |
+| -------------- | ----- | ------------------------------ |
+| `genkey`       | `gk`  | Generate RSA key pair          |
+| `encrypt-file` | `enc` | Encrypt file or base64 string  |
+| `decrypt-file` | `dec` | Decrypt encrypted JSON payload |
+
+---
+
+### 🔐 Generate RSA Key Pair
 
 ```bash
-dreamstone genkey --private-path private.pem --public-path public.pem
+dreamstone genkey \
+  --private-path private.pem \
+  --public-path public.pem \
+  --password "mypassword"
 ```
 
-### Encrypt a file
+#### Arguments
 
-```bash
-dreamstone encrypt-file --input-file secrets.txt --public-key-file public.pem --output-file encrypted.json
-```
+| Argument         | Alias | Required | Description                     |
+| ---------------- | ----- | -------- | ------------------------------- |
+| `--private-path` | `-pr` | ✅        | Path to save private key        |
+| `--public-path`  | `-pu` | ✅        | Path to save public key         |
+| `--password`     | `-pw` | ❌        | Password to encrypt private key |
+| `--no-password`  | `-np` | ❌        | Skip password protection        |
 
-### Encrypt base64 data and generate keys
+---
+
+### 🔒 Encrypt File or Base64
 
 ```bash
 dreamstone encrypt-file \
-  --input-data "TWluaGEgbWVuc2FnZW0gc2VjcmV0YQ==" \
-  --private-key-path private.pem \
-  --public-key-path public.pem \
+  --input-file secret.txt \
+  --public-key-file public.pem \
   --output-file encrypted.json
 ```
 
-### Decrypt file and print to stdout
+Or encrypt base64 data directly:
 
 ```bash
-dreamstone decrypt-file encrypted.json --private-key-file private.pem --password YOUR_PASSWORD_HERE
+dreamstone encrypt-file \
+  --input-data "SGVsbG8gd29ybGQ=" \
+  --output-file encrypted.json
 ```
 
-### Decrypt file and save output
+#### Arguments
+
+| Argument             | Alias | Required | Description                                    |
+| -------------------- | ----- | -------- | ---------------------------------------------- |
+| `--input-file`       | `-i`  | ❌        | Path to input file                             |
+| `--input-data`       | `-d`  | ❌        | Raw base64-encoded input data                  |
+| `--public-key-file`  | `-k`  | ❌        | Path to public key (auto-generated if omitted) |
+| `--output-file`      | `-o`  | ✅        | Output path for encrypted JSON                 |
+| `--private-key-path` | `-pr` | ❌        | Where to save generated private key            |
+| `--public-key-path`  | `-pu` | ❌        | Where to save generated public key             |
+| `--password`         | `-pw` | ❌        | Password for generated private key             |
+
+---
+
+### 🔓 Decrypt JSON Payload
 
 ```bash
-dreamstone decrypt-file encrypted.json --private-key-file private.pem --password YOUR_PASSWORD_HERE --output-file decrypted.txt
+dreamstone decrypt-file \
+  encrypted.json \
+  --private-key-file private.pem \
+  --password "mypassword" \
+  --output-file decrypted.txt
+```
+
+#### Arguments
+
+| Argument             | Alias | Required | Description                     |
+| -------------------- | ----- | -------- | ------------------------------- |
+| `input_path`         | -     | ✅        | Encrypted JSON file path        |
+| `--private-key-file` | `-k`  | ✅        | RSA private key file            |
+| `--password`         | `-p`  | ❌        | Password to decrypt private key |
+| `--output-file`      | `-o`  | ❌        | Output file for decrypted data  |
+
+---
+
+## Output JSON Format
+
+Encrypted output is stored as a JSON object:
+
+```json
+{
+  "encrypted_key": "base64...",
+  "nonce": "base64...",
+  "ciphertext": "base64...",
+  "algorithm": "AES-GCM",
+  "key_type": "RSA"
+}
 ```
 
 ---
 
-## Python Usage Examples
+## Python Example
 
 ```python
-from dreamstone.core.keys import generate_rsa_keypair, save_rsa_keypair_to_files, load_private_key, load_public_key
-from dreamstone.core.encryption import encrypt, encrypt_with_auto_key
+from dreamstone.core.keys import generate_rsa_keypair
+from dreamstone.core.encryption import encrypt
 from dreamstone.core.decryption import decrypt
 from dreamstone.models.payload import EncryptedPayload
 
-# Generate RSA key pair and save to files
-private_key, public_key = generate_rsa_keypair()
-password = save_rsa_keypair_to_files(private_key, public_key, "private.pem", "public.pem", password=None)
-print(f"Generated keys saved. Use this password to decrypt: {password}")
+# Generate keypair
+priv, pub = generate_rsa_keypair()
 
-# Encrypt raw data with existing public key
-with open("public.pem", "rb") as f:
-    pub_key = load_public_key(f.read())
+# Encrypt
+payload_dict = encrypt(b"secret", pub)
+payload = EncryptedPayload(**payload_dict)
 
-plaintext = b"My secret message"
-enc_result = encrypt(plaintext, pub_key)
-payload = EncryptedPayload(**enc_result)
-
-# Save encrypted payload JSON
-with open("encrypted.json", "w") as f:
-    f.write(payload.to_json())
-
-# Decrypt the payload with private key and password
-with open("private.pem", "rb") as f:
-    priv_key = load_private_key(f.read(), password=password.encode())
-
+# Decrypt
 decrypted = decrypt(
     encrypted_key=payload.encrypted_key,
     nonce=payload.nonce,
     ciphertext=payload.ciphertext,
-    private_key=priv_key,
+    private_key=priv
 )
 
-print("Decrypted message:", decrypted.decode())
+print(decrypted.decode())  # "secret"
 ```
 
 ---
@@ -107,6 +164,6 @@ MIT License
 
 ---
 
-## Contact
+## Author
 
-For issues and contributions, please open an issue or pull request on the repository.
+By me, Renks
