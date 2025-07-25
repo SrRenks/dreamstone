@@ -54,9 +54,9 @@ def genkey(
     logger.info(f"Public key saved to {public_path}")
     if not password:
         logger.warning(
-            f"\033[93mNo password was provided. "
-            f"A strong password was generated: \033[92m{saved_password}\033[93m ← Save this password securely. "
-            f"Without it you will NOT be able to decrypt.\033[0m"
+            f"[yellow]No password was provided. "
+            f"A strong password was generated: [green]{saved_password}[/green] ← Save this password securely. "
+            f"Without it you will NOT be able to decrypt.[/yellow]"
         )
 
 @app.command()
