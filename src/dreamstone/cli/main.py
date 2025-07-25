@@ -73,6 +73,7 @@ def encrypt_command(
     ),
     password: Optional[str] = typer.Option(None, "--password", "-p", help="Password to protect private key PEM"),
     output_file: Path = typer.Option(..., "--output-file", "-of", help="Where to save encrypted payload JSON"),
+    key_output_dir: Path = typer.Option(Path("secrets"), "--key-output-dir", "-kod", help="Directory to save keys if generated"),
     log_level: str = typer.Option("WARNING", "--log-level", "-ll", help=f"Logging level, one of {LOG_LEVELS}"),
 ):
     setup_logging(log_level)
@@ -105,7 +106,7 @@ def encrypt_command(
 
     else:
         logger.info("No public key provided. Generating new RSA key pair.")
-        secrets_dir = Path("secrets")
+        secrets_dir = key_output_dir
         secrets_dir.mkdir(parents=True, exist_ok=True)
 
         hash_id = hashlib.sha256(data[:16]).hexdigest()[:8]
