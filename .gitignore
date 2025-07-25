@@ -1,0 +1,48 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Poetry virtual environments
+.env
+.venv/
+venv/
+env/
+
+# Poetry cache and lock
+.poetry/
+poetry.lock
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Pytest cache
+.pytest_cache/
+
+# MyPy cache
+.mypy_cache/
+
+# VS Code settings
+.vscode/
+
+# JetBrains IDEs
+.idea/
+
+# macOS
+.DS_Store
+
+# Logs and temp files
+*.log
+*.tmp
+
+# Coverage reports
+htmlcov/
+.coverage
+.coverage.*
+
+# Encrypted keys or secrets if any (optional, review if you commit keys)
+*.pem
+*.key
