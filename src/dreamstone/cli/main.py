@@ -32,12 +32,12 @@ def setup_logging(log_level: str):
     level = getattr(logging, log_level.upper(), logging.WARNING)
     logger.setLevel(level)
 
-@app.command()
-def genkey(
-    private_path: Path = typer.Option(..., help="Path to save private key PEM"),
-    public_path: Path = typer.Option(..., help="Path to save public key PEM"),
-    password: Optional[str] = typer.Option(None, help="Password to protect private key. If not given, generates a strong one."),
-    log_level: str = typer.Option("WARNING", help=f"Logging level, one of {LOG_LEVELS}"),
+@app.command("genkey")
+def genkey_command(
+    private_path: Path = typer.Option(...,  "--private-path", "-prip", help="Path to save private key PEM"),
+    public_path: Path = typer.Option(..., "--public-path", "-pubp", help="Path to save public key PEM"),
+    password: Optional[str] = typer.Option(None, "--password", "-p", help="Password to protect private key. If not given, generates a strong one."),
+    log_level: str = typer.Option("WARNING", "--log-level", "-ll", help=f"Logging level, one of {LOG_LEVELS}"),
 ):
     setup_logging(log_level)
     private_key, public_key = generate_rsa_keypair()
@@ -57,23 +57,23 @@ def genkey(
             f"Without it you will NOT be able to decrypt.[/yellow]"
         )
 
-@app.command()
-def encrypt_file(
-    input_file: Optional[Path] = typer.Option(None, help="File to encrypt"),
-    input_data: Optional[str] = typer.Option(None, help="Base64-encoded data to encrypt"),
-    base64_input: bool = typer.Option(False, "--base64", help="Indicates if input is base64"),
+@app.command("encrypt")
+def encrypt_command(
+    input_file: Optional[Path] = typer.Option(None, "--input-file", "-if", help="File to encrypt"),
+    input_data: Optional[str] = typer.Option(None, "--input-data", "-id", help="Base64-encoded data to encrypt"),
+    base64_input: bool = typer.Option(False, "--base64", "-b64", help="Indicates if input is base64"),
     public_key_file: Optional[Path] = typer.Option(
-        None, help="Public key PEM file to encrypt with (if omitted, keys are generated)"
+        None, "--public-key-file", "-pkf", help="Public key PEM file to encrypt with (if omitted, keys are generated)"
     ),
     private_key_path: Optional[Path] = typer.Option(
-        None, help="Where to save private key PEM if keys are generated"
+        None, "--private-key-path", "-prikp", help="Where to save private key PEM if keys are generated"
     ),
     public_key_path: Optional[Path] = typer.Option(
-        None, help="Where to save public key PEM if keys are generated"
+        None, "--public-key-path", "-pubkp", help="Where to save public key PEM if keys are generated"
     ),
-    password: Optional[str] = typer.Option(None, help="Password to protect private key PEM"),
-    output_file: Path = typer.Option(..., help="Where to save encrypted payload JSON"),
-    log_level: str = typer.Option("WARNING", help=f"Logging level, one of {LOG_LEVELS}"),
+    password: Optional[str] = typer.Option(None, "--password", "-p", help="Password to protect private key PEM"),
+    output_file: Path = typer.Option(..., "--output-file", "-of", help="Where to save encrypted payload JSON"),
+    log_level: str = typer.Option("WARNING", "--log-level", "-ll", help=f"Logging level, one of {LOG_LEVELS}"),
 ):
     setup_logging(log_level)
 
@@ -141,13 +141,13 @@ def encrypt_file(
 
     logger.info(f"Encrypted payload saved to {output_file}")
 
-@app.command()
-def decrypt_file(
+@app.command("decrypt")
+def decrypt_command(
     encrypted_file: Path = typer.Argument(..., help="Path to encrypted JSON payload"),
-    private_key_file: Path = typer.Option(..., help="Private key PEM file to decrypt with"),
-    password: Optional[str] = typer.Option(None, help="Password for private key PEM (if encrypted)"),
-    output_file: Optional[Path] = typer.Option(None, help="Path to save decrypted output (if not given prints to stdout)"),
-    log_level: str = typer.Option("WARNING", help=f"Logging level, one of {LOG_LEVELS}"),
+    private_key_file: Path = typer.Option(..., "--private-key-file", "-pkf", help="Private key PEM file to decrypt with"),
+    password: Optional[str] = typer.Option(None, "--password", "-p", help="Password for private key PEM (if encrypted)"),
+    output_file: Optional[Path] = typer.Option(None, "--output-file", "-of", help="Path to save decrypted output (if not given prints to stdout)"),
+    log_level: str = typer.Option("WARNING", "--log-level", "-ll", help=f"Logging level, one of {LOG_LEVELS}"),
 ):
     setup_logging(log_level)
     logger.debug("Loading private key")
