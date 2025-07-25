@@ -76,7 +76,6 @@ def encrypt_file(
 ):
     setup_logging(verbose)
 
-    # Validar que pelo menos input_file ou input_data foi passado
     if not input_file and not input_data:
         logger.error("You must provide either --input-file or --input-data")
         raise typer.Exit(code=1)
