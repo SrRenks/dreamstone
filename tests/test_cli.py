@@ -34,13 +34,14 @@ def reset_logger():
         logger.removeHandler(h)
 
 def test_encrypt_with_input_data_and_decrypt_stdout(tmp_path, caplog):
-    plaintext = "Mensagem secreta para stdout."
+    plaintext = "Secret message for stdout."
     encrypted_file = tmp_path / "encrypted_stdout.json"
     with caplog.at_level(logging.WARNING, logger="dreamstone"):
         result_encrypt = runner.invoke(app, [
             "encrypt",
             "--input-data", plaintext,
             "--output-file", str(encrypted_file),
+            "--key-output-dir", str(tmp_path),
         ])
 
     assert result_encrypt.exit_code == 0
@@ -49,11 +50,10 @@ def test_encrypt_with_input_data_and_decrypt_stdout(tmp_path, caplog):
     logs_clean = remove_rich_markup(logs_clean)
     match = re.search(r"A strong password was generated: ([\w\-]+)", logs_clean)
     password = match.group(1).strip() if match else None
-    assert password is not None, "Senha gerada não foi encontrada no log"
+    assert password is not None, "password not generated on log"
 
-    secret_dir = Path("secrets")
-    priv_keys = list(secret_dir.glob("private_*.pem"))
-    assert priv_keys, "Arquivo de chave privada não encontrado"
+    priv_keys = list(tmp_path.glob("private_*.pem"))
+    assert priv_keys, "private key pem file not founnd"
 
     private_key_file = priv_keys[0]
     decrypt_args = [
@@ -71,7 +71,6 @@ def test_genkey_creates_files_and_warns_password(tmp_path, caplog):
     private_path = tmp_path / "priv.pem"
     public_path = tmp_path / "pub.pem"
 
-    # Testa geração sem senha (gera senha forte)
     with caplog.at_level(logging.WARNING, logger="dreamstone"):
         result = runner.invoke(app, [
             "genkey",
@@ -89,7 +88,7 @@ def test_genkey_creates_files_and_warns_password(tmp_path, caplog):
 def test_genkey_with_password(tmp_path):
     private_path = tmp_path / "priv.pem"
     public_path = tmp_path / "pub.pem"
-    password = "minhaSenhaForte123!"
+    password = "myStrongPassword123!"
 
     result = runner.invoke(app, [
         "genkey",
@@ -101,12 +100,11 @@ def test_genkey_with_password(tmp_path):
     assert result.exit_code == 0
     assert private_path.exists()
     assert public_path.exists()
-    # Não deve ter gerado aviso de senha
     assert "A strong password was generated:" not in result.output
 
 def test_encrypt_and_decrypt_with_input_file(tmp_path, caplog):
     input_file = tmp_path / "input.txt"
-    input_file.write_text("Texto para criptografar")
+    input_file.write_text("text to encrypt")
 
     encrypted_file = tmp_path / "encrypted.json"
 
@@ -124,7 +122,7 @@ def test_encrypt_and_decrypt_with_input_file(tmp_path, caplog):
     logs_clean = remove_rich_markup(logs_clean)
     match = re.search(r"A strong password was generated: ([\w\-]+)", logs_clean)
     password = match.group(1).strip() if match else None
-    assert password is not None, "Senha gerada não foi encontrada no log"
+    assert password is not None, "password not generated on log"
 
     result_encrypt = runner.invoke(app, [
         "encrypt",
@@ -142,10 +140,10 @@ def test_encrypt_and_decrypt_with_input_file(tmp_path, caplog):
         "--password", password,
     ])
     assert result_decrypt.exit_code == 0
-    assert "Texto para criptografar" in result_decrypt.stdout
+    assert "text to encrypt" in result_decrypt.stdout
 
 def test_encrypt_and_decrypt_with_base64_input(tmp_path, caplog):
-    plaintext = "Texto base64 para testar"
+    plaintext = "text base64 for testing"
     b64_input = base64.b64encode(plaintext.encode()).decode()
     encrypted_file = tmp_path / "encrypted_b64.json"
 
@@ -163,7 +161,7 @@ def test_encrypt_and_decrypt_with_base64_input(tmp_path, caplog):
     logs_clean = remove_rich_markup(logs_clean)
     match = re.search(r"A strong password was generated: ([\w\-]+)", logs_clean)
     password = match.group(1).strip() if match else None
-    assert password is not None, "Senha gerada não foi encontrada no log"
+    assert password is not None, "password not generated on log"
 
     result_encrypt = runner.invoke(app, [
         "encrypt",
@@ -202,7 +200,7 @@ def test_encrypt_fails_without_input(tmp_path, caplog):
 
 def test_encrypt_fails_with_both_input_file_and_data(tmp_path, caplog):
     input_file = tmp_path / "input.txt"
-    input_file.write_text("texto")
+    input_file.write_text("text")
     encrypted_file = tmp_path / "fail.json"
 
     with caplog.at_level(logging.ERROR, logger="dreamstone"):
@@ -221,7 +219,7 @@ def test_encrypt_fails_with_both_input_file_and_data(tmp_path, caplog):
 
 
 def test_decrypt_writes_to_output_file(tmp_path, caplog):
-    plaintext = "salvar no arquivo"
+    plaintext = "save on file"
     encrypted_file = tmp_path / "encrypted.json"
     decrypted_file = tmp_path / "decrypted.txt"
     priv = tmp_path / "priv.pem"
@@ -255,10 +253,10 @@ def test_decrypt_writes_to_output_file(tmp_path, caplog):
     assert decrypted_file.read_text() == plaintext
 
 def test_encrypt_with_generated_key_and_custom_paths(tmp_path, caplog):
-    plaintext = "conteúdo com chaves geradas"
+    plaintext = "content with generated keys"
     encrypted_file = tmp_path / "encrypted.json"
-    priv = tmp_path / "minha_privada.pem"
-    pub = tmp_path / "minha_publica.pem"
+    priv = tmp_path / "my_private.pem"
+    pub = tmp_path / "my_public.pem"
 
     result = runner.invoke(app, [
         "encrypt",
@@ -266,6 +264,7 @@ def test_encrypt_with_generated_key_and_custom_paths(tmp_path, caplog):
         "--output-file", str(encrypted_file),
         "--private-key-path", str(priv),
         "--public-key-path", str(pub),
+        "--key-output-dir", str(tmp_path),
     ], catch_exceptions=False)
 
     assert result.exit_code == 0
@@ -274,7 +273,7 @@ def test_encrypt_with_generated_key_and_custom_paths(tmp_path, caplog):
     assert pub.exists()
 
 def test_decrypt_fails_with_wrong_password(tmp_path, caplog):
-    plaintext = "senha errada"
+    plaintext = "wrong password"
     encrypted_file = tmp_path / "encrypted.json"
     priv = tmp_path / "priv.pem"
     pub = tmp_path / "pub.pem"
@@ -284,10 +283,6 @@ def test_decrypt_fails_with_wrong_password(tmp_path, caplog):
             "genkey", "--private-path", str(priv), "--public-path", str(pub)
         ])
 
-    logs_clean = "\n".join(remove_ansi_escape(r.getMessage()) for r in caplog.records)
-    logs_clean = remove_rich_markup(logs_clean)
-    real_password = re.search(r"A strong password was generated: ([\w\-]+)", logs_clean).group(1).strip()
-
     runner.invoke(app, [
         "encrypt",
         "--input-data", plaintext,
@@ -295,7 +290,6 @@ def test_decrypt_fails_with_wrong_password(tmp_path, caplog):
         "--output-file", str(encrypted_file),
     ])
 
-    # Senha errada
     result = runner.invoke(app, [
         "decrypt",
         str(encrypted_file),
@@ -307,13 +301,12 @@ def test_decrypt_fails_with_wrong_password(tmp_path, caplog):
     assert "Password was not given" not in result.stdout
 
 def test_decrypt_requires_password_when_key_is_encrypted(tmp_path):
-    plaintext = "segredo com senha obrigatória"
+    plaintext = "secret with password required"
     encrypted_file = tmp_path / "encrypted.json"
     private_path = tmp_path / "priv.pem"
     public_path = tmp_path / "pub.pem"
-    password = "senhaSegura!"
+    password = "SecureSecret!"
 
-    # Gera chave com senha
     runner.invoke(app, [
         "genkey",
         "--private-path", str(private_path),
@@ -321,7 +314,6 @@ def test_decrypt_requires_password_when_key_is_encrypted(tmp_path):
         "--password", password
     ])
 
-    # Criptografa
     runner.invoke(app, [
         "encrypt",
         "--input-data", plaintext,
@@ -329,7 +321,6 @@ def test_decrypt_requires_password_when_key_is_encrypted(tmp_path):
         "--output-file", str(encrypted_file)
     ])
 
-    # Tenta descriptografar sem senha
     result = runner.invoke(app, [
         "decrypt",
         str(encrypted_file),
@@ -337,7 +328,7 @@ def test_decrypt_requires_password_when_key_is_encrypted(tmp_path):
     ])
 
     assert result.exit_code != 0
-    assert "Password was not given" not in result.stdout  # stdout não deve conter essa frase se sua lib trata corretamente
+    assert "Password was not given" not in result.stdout
 
 def test_encrypt_fails_with_invalid_base64_input(tmp_path, caplog):
     encrypted_file = tmp_path / "fail.json"
@@ -358,13 +349,14 @@ def test_encrypt_fails_with_invalid_base64_input(tmp_path, caplog):
     assert not encrypted_file.exists()
 
 def test_encrypted_payload_json_structure(tmp_path):
-    plaintext = "conteúdo estruturado"
+    plaintext = "structured content"
     encrypted_file = tmp_path / "estruturado.json"
 
     result = runner.invoke(app, [
         "encrypt",
         "--input-data", plaintext,
-        "--output-file", str(encrypted_file)
+        "--output-file", str(encrypted_file),
+        "--key-output-dir", str(tmp_path)
     ])
 
     assert result.exit_code == 0
@@ -391,9 +383,9 @@ def test_generated_password_has_minimum_length(tmp_path, caplog):
     logs_clean = "\n".join(remove_ansi_escape(r.getMessage()) for r in caplog.records)
     logs_clean = remove_rich_markup(logs_clean)
     match = re.search(r"A strong password was generated: ([\w\-]+)", logs_clean)
-    assert match, "Senha não encontrada no log"
+    assert match, "password not generated on log"
     password = match.group(1).strip()
-    assert len(password) >= 20, "Senha gerada é muito curta"
+    assert len(password) >= 20, "password too short"
 
 def test_encrypt_respects_log_level(tmp_path, caplog):
     encrypted_file = tmp_path / "silent.json"
@@ -402,14 +394,15 @@ def test_encrypt_respects_log_level(tmp_path, caplog):
         "--input-data", "dados",
         "--output-file", str(encrypted_file),
         "--log-level", "ERROR",
+        "--key-output-dir", str(tmp_path)
     ])
     assert result.exit_code == 0
     assert encrypted_file.exists()
-    assert not caplog.records, "Nenhum log deveria ser capturado com nível ERROR sem erros"
+    assert not caplog.records, "No logs should be captured with ERROR level without errors"
 
 @pytest.mark.parametrize("use_base64", [True, False])
 def test_encrypt_decrypt_parametrized(tmp_path, use_base64):
-    plaintext = "parametrizado 123"
+    plaintext = "parameterized 123"
     encrypted = tmp_path / "out.json"
     decrypted = tmp_path / "dec.txt"
     priv = tmp_path / "a.pem"
@@ -440,7 +433,7 @@ def test_encrypt_decrypt_parametrized(tmp_path, use_base64):
     assert decrypted.read_text() == plaintext
 
 def test_decrypt_with_corrupted_private_key(tmp_path):
-    plaintext = "teste corrompido"
+    plaintext = "corrupted test"
     encrypted_file = tmp_path / "enc.json"
     decrypted_file = tmp_path / "dec.txt"
     priv = tmp_path / "priv.pem"
@@ -456,7 +449,6 @@ def test_decrypt_with_corrupted_private_key(tmp_path):
         "--output-file", str(encrypted_file)
     ])
 
-    # Corrompe a chave privada
     priv.write_text("isso não é uma chave")
 
     result = runner.invoke(app, [
