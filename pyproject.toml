@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dreamstone"
-version = "0.1.1.post3"
+version = "0.1.2"
 description = "Secure hybrid RSA + AES encryption library with CLI"
 authors = ["Renks"]
 readme = "README.md"
@@ -17,6 +17,10 @@ dreamstone = "dreamstone.cli.main:app"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.4.1"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+addopts = "-v"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
