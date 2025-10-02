@@ -18,12 +18,13 @@ from dreamstone.models.payload import EncryptedPayload
 from rich.logging import RichHandler
 import base64
 import hashlib
+import os
 
 app = typer.Typer()
 logger = logging.getLogger("dreamstone")
 logger.setLevel(logging.INFO)
 logger.handlers.clear()
-handler = RichHandler(rich_tracebacks=True, markup=True, console=sys.stderr)
+handler = RichHandler(rich_tracebacks=True, markup=True, console=None)
 logger.addHandler(handler)
 
 LOG_LEVELS = ["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"]
@@ -36,6 +37,8 @@ def genkey_command(
     private_path: Path = typer.Option(...,  "--private-path", "-prip", help="Path to save private key PEM"),
     public_path: Path = typer.Option(..., "--public-path", "-pubp", help="Path to save public key PEM"),
     password: Optional[str] = typer.Option(None, "--password", "-p", help="Password to protect private key. If not given, generates a strong one."),
+    show_password: bool = typer.Option(True, "--show-password", "-sp", help="Show generated password in terminal if none provided"),
+    password_path: Optional[Path] = typer.Option(None, "--password-path", "-pp", help="Optional path to save generated password"),
     log_level: str = typer.Option("WARNING", "--log-level", "-ll", help=f"Logging level, one of {LOG_LEVELS}"),
 ):
     setup_logging(log_level)
@@ -47,18 +50,23 @@ def genkey_command(
         str(public_path),
         password,
     )
+
     logger.info(f"Private key saved to {private_path}")
     logger.info(f"Public key saved to {public_path}")
-    if not password:
-        logger.warning(
-            f"[yellow]No password was provided. "
-            f"A strong password was generated: [green]{saved_password}[/green] ← Save this password securely. "
-            f"Without it you will NOT be able to decrypt.[/yellow]"
-        )
+
+    if not password and saved_password and show_password:
+        typer.secho("Generated password (save it securely):", fg="yellow")
+        typer.secho(saved_password, fg="green", bold=True)
+
+    if password_path:
+        os.makedirs(password_path.parent, exist_ok=True)
+        password_path.write_text(saved_password or password, encoding="utf-8")
+        logger.info(f"Password saved to {password_path}")
+
+    return saved_password or password
 
 app.command("genkey")(genkey_command)
 app.command("gk")(genkey_command)
-
 def encrypt_command(
     input_file: Optional[Path] = typer.Option(None, "--input-file", "-if", help="File to encrypt"),
     input_data: Optional[str] = typer.Option(None, "--input-data", "-id", help="Base64-encoded data to encrypt"),
@@ -73,6 +81,8 @@ def encrypt_command(
         None, "--public-key-path", "-pubkp", help="Where to save public key PEM if keys are generated"
     ),
     password: Optional[str] = typer.Option(None, "--password", "-p", help="Password to protect private key PEM"),
+    show_password: bool = typer.Option(True, "--show-password", "-sp", help="Show generated password in terminal if none provided"),
+    password_path: Optional[Path] = typer.Option(None, "--password-path", "-pp", help="Optional path to save generated password"),
     output_file: Path = typer.Option(..., "--output-file", "-of", help="Where to save encrypted payload JSON"),
     key_output_dir: Path = typer.Option(Path("secrets"), "--key-output-dir", "-kod", help="Directory to save keys if generated"),
     log_level: str = typer.Option("WARNING", "--log-level", "-ll", help=f"Logging level, one of {LOG_LEVELS}"),
@@ -99,48 +109,52 @@ def encrypt_command(
         logger.debug(f"Loading public key from {public_key_file}")
         with open(public_key_file, "rb") as f:
             public_key = load_public_key(f.read())
-
         result = encrypt(data, public_key)
         payload = EncryptedPayload(**result)
-        logger.info(f"Encrypted using provided public key.")
         saved_password = None
+        logger.info(f"Encrypted using provided public key.")
 
     else:
-        logger.info("No public key provided. Generating new RSA key pair.")
+        logger.info("No public key provided. Generating new RSA key pair via genkey_command.")
         secrets_dir = key_output_dir
         secrets_dir.mkdir(parents=True, exist_ok=True)
 
         hash_id = hashlib.sha256(data[:16]).hexdigest()[:8]
-        suffix = f"_{hash_id}.pem"
-
         if not private_key_path:
-            private_key_path = secrets_dir / f"private{suffix}"
+            private_key_path = secrets_dir / f"private_{hash_id}.pem"
         if not public_key_path:
-            public_key_path = secrets_dir / f"public{suffix}"
+            public_key_path = secrets_dir / f"public_{hash_id}.pem"
 
-        result_dict = encrypt_with_auto_key(
-            data,
-            public_key=None,
-            save_keys=True,
-            private_path=str(private_key_path),
-            public_path=str(public_key_path),
-            password=password,
+        class DummyTyper:
+            def __init__(self):
+                self.private_path = private_key_path
+                self.public_path = public_key_path
+                self.password = password
+                self.show_password = show_password
+                self.password_path = password_path
+                self.log_level = log_level
+
+        args = DummyTyper()
+        saved_password = genkey_command(
+            private_path=args.private_path,
+            public_path=args.public_path,
+            password=args.password,
+            show_password=args.show_password,
+            password_path=args.password_path,
+            log_level=args.log_level
         )
-        payload = EncryptedPayload(**result_dict["payload"])
-        saved_password = result_dict["password"]
 
-        logger.info(f"Private key saved to {private_key_path}")
-        logger.info(f"Public key saved to {public_key_path}")
-        if saved_password:
-            logger.warning(
-                "[yellow]No password was provided. A strong password was generated: [green]{}[/green] ← Save this password securely. Without it you will NOT be able to decrypt.[/yellow]".format(
-                    saved_password
-                )
-            )
+        with open(private_key_path, "rb") as f:
+            private_key = load_private_key(f.read(), password=saved_password.encode() if saved_password else None)
+        with open(public_key_path, "rb") as f:
+            public_key = load_public_key(f.read())
+
+        result = encrypt(data, public_key)
+        payload = EncryptedPayload(**result)
+        saved_password = password
 
     with open(output_file, "w") as f:
         f.write(payload.to_json())
-
     logger.info(f"Encrypted payload saved to {output_file}")
 
 app.command("encrypt")(encrypt_command)
@@ -150,17 +164,25 @@ def decrypt_command(
     encrypted_file: Path = typer.Argument(..., help="Path to encrypted JSON payload"),
     private_key_file: Path = typer.Option(..., "--private-key-file", "-pkf", help="Private key PEM file to decrypt with"),
     password: Optional[str] = typer.Option(None, "--password", "-p", help="Password for private key PEM (if encrypted)"),
+    password_path: Optional[Path] = typer.Option(None, "--password-path", "-pp", help="File containing password for private key PEM"),
     output_file: Optional[Path] = typer.Option(None, "--output-file", "-of", help="Path to save decrypted output (if not given prints to stdout)"),
     log_level: str = typer.Option("WARNING", "--log-level", "-ll", help=f"Logging level, one of {LOG_LEVELS}"),
 ):
     setup_logging(log_level)
+
+    if password_path:
+        password = password_path.read_text(encoding="utf-8").strip()
+
     logger.debug("Loading private key")
     with open(private_key_file, "rb") as f:
         private_key = load_private_key(f.read(), password=password.encode() if password else None)
+
     logger.debug("Loading encrypted payload")
+
     with open(encrypted_file, "r") as f:
         data = json.load(f)
     payload = EncryptedPayload.from_dict(data)
+
     logger.debug("Decrypting data")
     plaintext = decrypt(
         encrypted_key=payload.encrypted_key,
