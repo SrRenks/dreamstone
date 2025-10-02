@@ -33,57 +33,56 @@ def reset_logger():
         h.close()
         logger.removeHandler(h)
 
-def test_encrypt_with_input_data_and_decrypt_stdout(tmp_path, caplog):
+def test_encrypt_with_input_data_and_decrypt_stdout(tmp_path):
     plaintext = "Secret message for stdout."
     encrypted_file = tmp_path / "encrypted_stdout.json"
-    with caplog.at_level(logging.WARNING, logger="dreamstone"):
-        result_encrypt = runner.invoke(app, [
-            "encrypt",
-            "--input-data", plaintext,
-            "--output-file", str(encrypted_file),
-            "--key-output-dir", str(tmp_path),
-        ])
+    private_file = tmp_path / "private.pem"
+    public_file = tmp_path / "public.pem"
 
+    result_genkey = runner.invoke(app, [
+        "genkey",
+        "--private-path", str(private_file),
+        "--public-path", str(public_file),
+    ])
+    assert result_genkey.exit_code == 0
+
+    match = re.search(r"Generated password.*?:\s*([^\s]+)", result_genkey.output)
+    password = match.group(1).strip() if match else None
+    assert password is not None, "password not generated on stdout"
+
+    result_encrypt = runner.invoke(app, [
+        "encrypt",
+        "--input-data", plaintext,
+        "--output-file", str(encrypted_file),
+        "--public-key-file", str(public_file),
+    ])
     assert result_encrypt.exit_code == 0
     assert encrypted_file.exists()
-    logs_clean = "\n".join(remove_ansi_escape(r.getMessage()) for r in caplog.records)
-    logs_clean = remove_rich_markup(logs_clean)
-    match = re.search(r"A strong password was generated: ([\w\-]+)", logs_clean)
-    password = match.group(1).strip() if match else None
-    assert password is not None, "password not generated on log"
 
-    priv_keys = list(tmp_path.glob("private_*.pem"))
-    assert priv_keys, "private key pem file not founnd"
-
-    private_key_file = priv_keys[0]
-    decrypt_args = [
+    result_decrypt = runner.invoke(app, [
         "decrypt",
         str(encrypted_file),
-        "--private-key-file", str(private_key_file),
+        "--private-key-file", str(private_file),
         "--password", password,
-    ]
-    result_decrypt = runner.invoke(app, decrypt_args)
-
+    ])
     assert result_decrypt.exit_code == 0
     assert plaintext in result_decrypt.stdout
 
-def test_genkey_creates_files_and_warns_password(tmp_path, caplog):
+def test_genkey_creates_files_and_warns_password(tmp_path):
     private_path = tmp_path / "priv.pem"
     public_path = tmp_path / "pub.pem"
 
-    with caplog.at_level(logging.WARNING, logger="dreamstone"):
-        result = runner.invoke(app, [
-            "genkey",
-            "--private-path", str(private_path),
-            "--public-path", str(public_path),
-        ])
-
+    result = runner.invoke(app, [
+        "genkey",
+        "--private-path", str(private_path),
+        "--public-path", str(public_path),
+    ])
     assert result.exit_code == 0
     assert private_path.exists()
     assert public_path.exists()
-    logs_clean = "\n".join(remove_ansi_escape(r.getMessage()) for r in caplog.records)
-    logs_clean = remove_rich_markup(logs_clean)
-    assert "A strong password was generated:" in logs_clean
+
+    assert re.search(r"Generated password.*?:\s*([^\s]+)", result.output), "password not generated on stdout"
+
 
 def test_genkey_with_password(tmp_path):
     private_path = tmp_path / "priv.pem"
@@ -102,33 +101,29 @@ def test_genkey_with_password(tmp_path):
     assert public_path.exists()
     assert "A strong password was generated:" not in result.output
 
-def test_encrypt_and_decrypt_with_input_file(tmp_path, caplog):
+def test_encrypt_and_decrypt_with_input_file(tmp_path):
     input_file = tmp_path / "input.txt"
     input_file.write_text("text to encrypt")
-
     encrypted_file = tmp_path / "encrypted.json"
 
-    private_path = tmp_path / "priv.pem"
-    public_path = tmp_path / "pub.pem"
+    private_file = tmp_path / "private.pem"
+    public_file = tmp_path / "public.pem"
 
-    with caplog.at_level(logging.WARNING, logger="dreamstone"):
-        runner.invoke(app, [
-            "genkey",
-            "--private-path", str(private_path),
-            "--public-path", str(public_path),
-        ])
-
-    logs_clean = "\n".join(remove_ansi_escape(r.getMessage()) for r in caplog.records)
-    logs_clean = remove_rich_markup(logs_clean)
-    match = re.search(r"A strong password was generated: ([\w\-]+)", logs_clean)
-    password = match.group(1).strip() if match else None
-    assert password is not None, "password not generated on log"
+    result_genkey = runner.invoke(app, [
+        "genkey",
+        "--private-path", str(private_file),
+        "--public-path", str(public_file),
+    ])
+    assert result_genkey.exit_code == 0
+    match = re.search(r"Generated password.*?:\s*([^\s]+)", result_genkey.output)
+    password = match.group(1).strip()
+    assert password
 
     result_encrypt = runner.invoke(app, [
         "encrypt",
         "--input-file", str(input_file),
-        "--public-key-file", str(public_path),
         "--output-file", str(encrypted_file),
+        "--public-key-file", str(public_file),
     ])
     assert result_encrypt.exit_code == 0
     assert encrypted_file.exists()
@@ -136,39 +131,37 @@ def test_encrypt_and_decrypt_with_input_file(tmp_path, caplog):
     result_decrypt = runner.invoke(app, [
         "decrypt",
         str(encrypted_file),
-        "--private-key-file", str(private_path),
+        "--private-key-file", str(private_file),
         "--password", password,
     ])
     assert result_decrypt.exit_code == 0
     assert "text to encrypt" in result_decrypt.stdout
 
-def test_encrypt_and_decrypt_with_base64_input(tmp_path, caplog):
+
+def test_encrypt_and_decrypt_with_base64_input(tmp_path):
     plaintext = "text base64 for testing"
     b64_input = base64.b64encode(plaintext.encode()).decode()
     encrypted_file = tmp_path / "encrypted_b64.json"
 
-    private_path = tmp_path / "priv.pem"
-    public_path = tmp_path / "pub.pem"
+    private_file = tmp_path / "private.pem"
+    public_file = tmp_path / "public.pem"
 
-    with caplog.at_level(logging.WARNING, logger="dreamstone"):
-        runner.invoke(app, [
-            "genkey",
-            "--private-path", str(private_path),
-            "--public-path", str(public_path),
-        ])
-
-    logs_clean = "\n".join(remove_ansi_escape(r.getMessage()) for r in caplog.records)
-    logs_clean = remove_rich_markup(logs_clean)
-    match = re.search(r"A strong password was generated: ([\w\-]+)", logs_clean)
-    password = match.group(1).strip() if match else None
-    assert password is not None, "password not generated on log"
+    result_genkey = runner.invoke(app, [
+        "genkey",
+        "--private-path", str(private_file),
+        "--public-path", str(public_file),
+    ])
+    assert result_genkey.exit_code == 0
+    match = re.search(r"Generated password.*?:\s*([^\s]+)", result_genkey.output)
+    password = match.group(1).strip()
+    assert password
 
     result_encrypt = runner.invoke(app, [
         "encrypt",
         "--input-data", b64_input,
         "--base64",
-        "--public-key-file", str(public_path),
         "--output-file", str(encrypted_file),
+        "--public-key-file", str(public_file),
     ])
     assert result_encrypt.exit_code == 0
     assert encrypted_file.exists()
@@ -176,7 +169,7 @@ def test_encrypt_and_decrypt_with_base64_input(tmp_path, caplog):
     result_decrypt = runner.invoke(app, [
         "decrypt",
         str(encrypted_file),
-        "--private-key-file", str(private_path),
+        "--private-key-file", str(private_file),
         "--password", password,
     ])
     assert result_decrypt.exit_code == 0
@@ -218,37 +211,38 @@ def test_encrypt_fails_with_both_input_file_and_data(tmp_path, caplog):
     assert "You must provide only one of --input-file or --input-data" in logs_clean
 
 
-def test_decrypt_writes_to_output_file(tmp_path, caplog):
+def test_decrypt_writes_to_output_file(tmp_path):
     plaintext = "save on file"
     encrypted_file = tmp_path / "encrypted.json"
     decrypted_file = tmp_path / "decrypted.txt"
-    priv = tmp_path / "priv.pem"
-    pub = tmp_path / "pub.pem"
 
-    with caplog.at_level(logging.WARNING, logger="dreamstone"):
-        runner.invoke(app, [
-            "genkey", "--private-path", str(priv), "--public-path", str(pub)
-        ])
+    private_file = tmp_path / "private.pem"
+    public_file = tmp_path / "public.pem"
 
-    logs_clean = "\n".join(remove_ansi_escape(r.getMessage()) for r in caplog.records)
-    logs_clean = remove_rich_markup(logs_clean)
-    password = re.search(r"A strong password was generated: ([\w\-]+)", logs_clean).group(1).strip()
+    result_genkey = runner.invoke(app, [
+        "genkey",
+        "--private-path", str(private_file),
+        "--public-path", str(public_file),
+    ])
+    assert result_genkey.exit_code == 0
+    match = re.search(r"Generated password.*?:\s*([^\s]+)", result_genkey.output)
+    password = match.group(1).strip()
+    assert password
 
     runner.invoke(app, [
         "encrypt",
         "--input-data", plaintext,
-        "--public-key-file", str(pub),
         "--output-file", str(encrypted_file),
+        "--public-key-file", str(public_file),
     ])
 
     result = runner.invoke(app, [
         "decrypt",
         str(encrypted_file),
-        "--private-key-file", str(priv),
+        "--private-key-file", str(private_file),
         "--password", password,
         "--output-file", str(decrypted_file),
     ])
-
     assert result.exit_code == 0
     assert decrypted_file.read_text() == plaintext
 
@@ -369,21 +363,19 @@ def test_encrypted_payload_json_structure(tmp_path):
     assert "nonce" in payload
     assert "ciphertext" in payload
 
-def test_generated_password_has_minimum_length(tmp_path, caplog):
-    priv = tmp_path / "priv.pem"
-    pub = tmp_path / "pub.pem"
 
-    with caplog.at_level(logging.WARNING, logger="dreamstone"):
-        runner.invoke(app, [
-            "genkey",
-            "--private-path", str(priv),
-            "--public-path", str(pub),
-        ])
+def test_generated_password_has_minimum_length(tmp_path):
+    private_file = tmp_path / "private.pem"
+    public_file = tmp_path / "public.pem"
 
-    logs_clean = "\n".join(remove_ansi_escape(r.getMessage()) for r in caplog.records)
-    logs_clean = remove_rich_markup(logs_clean)
-    match = re.search(r"A strong password was generated: ([\w\-]+)", logs_clean)
-    assert match, "password not generated on log"
+    result_genkey = runner.invoke(app, [
+        "genkey",
+        "--private-path", str(private_file),
+        "--public-path", str(public_file),
+    ])
+    assert result_genkey.exit_code == 0
+    match = re.search(r"Generated password.*?:\s*([^\s]+)", result_genkey.output)
+    assert match, "password not generated on stdout"
     password = match.group(1).strip()
     assert len(password) >= 20, "password too short"
 
@@ -468,3 +460,127 @@ def test_help_outputs():
     assert "encrypt" in result.stdout
     assert "decrypt" in result.stdout
     assert "genkey" in result.stdout
+
+def test_genkey_password_path(tmp_path):
+    priv = tmp_path / "priv.pem"
+    pub = tmp_path / "pub.pem"
+    pw_file = tmp_path / "password.txt"
+
+    result = runner.invoke(app, [
+        "genkey",
+        "--private-path", str(priv),
+        "--public-path", str(pub),
+        "--password-path", str(pw_file),
+    ])
+    assert result.exit_code == 0
+    assert pw_file.exists()
+    content = pw_file.read_text().strip()
+    assert content != ""
+
+
+def test_encrypt_show_password_false(tmp_path):
+    plaintext = "hidden password test"
+    encrypted_file = tmp_path / "encrypted.json"
+    priv = tmp_path / "private.pem"
+    pub = tmp_path / "public.pem"
+
+    result = runner.invoke(app, [
+        "encrypt",
+        "--input-data", plaintext,
+        "--output-file", str(encrypted_file),
+        "--key-output-dir", str(tmp_path),
+        "--no-show-password",
+    ])
+    assert result.exit_code == 0
+    assert encrypted_file.exists()
+    assert "Generated password" not in result.output
+
+def test_decrypt_non_utf8_stdout(tmp_path):
+    import base64
+    from dreamstone.core.keys import generate_rsa_keypair, save_rsa_keypair_to_files
+    from dreamstone.cli.main import app
+
+    binary_data = b"\xff\xfe\xfd\xfc"
+    encrypted_file = tmp_path / "encrypted.json"
+    priv = tmp_path / "priv.pem"
+    pub = tmp_path / "pub.pem"
+
+    private_key, public_key = generate_rsa_keypair()
+    saved_password = save_rsa_keypair_to_files(
+        private_key, public_key, str(priv), str(pub), password=None
+    )
+
+    assert priv.exists() and pub.exists()
+    assert saved_password is not None
+
+    runner = CliRunner()
+    b64_input = base64.b64encode(binary_data).decode()
+    result_encrypt = runner.invoke(app, [
+        "encrypt",
+        "--input-data", b64_input,
+        "--base64",
+        "--output-file", str(encrypted_file),
+        "--public-key-file", str(pub)
+    ])
+    assert result_encrypt.exit_code == 0
+    assert encrypted_file.exists()
+
+    result_decrypt = runner.invoke(app, [
+        "decrypt",
+        str(encrypted_file),
+        "--private-key-file", str(priv),
+        "--password", saved_password
+    ])
+    assert result_decrypt.exit_code == 0
+    assert result_decrypt.stdout_bytes == binary_data
+
+def test_encrypt_generated_key_names(tmp_path):
+    plaintext = "hash name test"
+    encrypted_file = tmp_path / "encrypted.json"
+
+    result = runner.invoke(app, [
+        "encrypt",
+        "--input-data", plaintext,
+        "--output-file", str(encrypted_file),
+        "--key-output-dir", str(tmp_path),
+    ])
+    assert result.exit_code == 0
+
+    priv_files = list(tmp_path.glob("private_*.pem"))
+    pub_files = list(tmp_path.glob("public_*.pem"))
+    assert len(priv_files) == 1
+    assert len(pub_files) == 1
+
+
+def test_encrypt_with_invalid_public_key(tmp_path):
+    plaintext = "fail key test"
+    encrypted_file = tmp_path / "fail.json"
+    invalid_pub = tmp_path / "invalid.pem"
+    invalid_pub.write_text("not a key")
+
+    result = runner.invoke(app, [
+        "encrypt",
+        "--input-data", plaintext,
+        "--output-file", str(encrypted_file),
+        "--public-key-file", str(invalid_pub)
+    ])
+    assert result.exit_code != 0
+    assert not encrypted_file.exists()
+
+
+def test_log_level_debug(tmp_path, caplog):
+    plaintext = "debug test"
+    encrypted_file = tmp_path / "debug.json"
+
+    result = runner.invoke(app, [
+        "encrypt",
+        "--input-data", plaintext,
+        "--output-file", str(encrypted_file),
+        "--key-output-dir", str(tmp_path),
+        "--log-level", "DEBUG"
+    ])
+    assert result.exit_code == 0
+    assert encrypted_file.exists()
+    logs = "\n".join(remove_ansi_escape(r.getMessage()) for r in caplog.records)
+    logs = remove_rich_markup(logs)
+    assert "Loading public key" in logs or "Encrypted using provided public key" in logs or "No public key provided" in logs
