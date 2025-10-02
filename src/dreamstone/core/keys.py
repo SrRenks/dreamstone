@@ -24,7 +24,7 @@ def generate_rsa_keypair(key_size: int = 4096):
     return private_key, public_key
 
 def export_private_key(private_key, password: str = None) -> bytes:
-    if password is None:
+    if not password:
         password = generate_strong_password()
 
     encryption_algo = serialization.BestAvailableEncryption(password.encode())
