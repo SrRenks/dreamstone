@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dreamstone"
-version = "0.1.3"
+version = "0.1.5"
 description = "Secure hybrid RSA + AES encryption library with CLI"
 authors = ["Renks"]
 readme = "README.md"
