@@ -32,12 +32,11 @@ LOG_LEVELS = ["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"]
 def setup_logging(log_level: str):
     level = getattr(logging, log_level.upper(), logging.WARNING)
     logger.setLevel(level)
-
 def genkey_command(
-    private_path: Path = typer.Option(...,  "--private-path", "-prip", help="Path to save private key PEM"),
-    public_path: Path = typer.Option(..., "--public-path", "-pubp", help="Path to save public key PEM"),
+    private_path: Optional[Path] = typer.Option(None, "--private-path", "-prip", help="Path to save private key PEM"),
+    public_path: Optional[Path] = typer.Option(None, "--public-path", "-pubp", help="Path to save public key PEM"),
     password: Optional[str] = typer.Option(None, "--password", "-p", help="Password to protect private key. If not given, generates a strong one."),
-    show_password: bool = typer.Option(True, "--show-password", "-sp", help="Show generated password in terminal if none provided"),
+    no_show_password: bool = typer.Option(False, "--no-show-password", "-nsp", help="No show generated password in terminal after auto gen if none is provided"),
     password_path: Optional[Path] = typer.Option(None, "--password-path", "-pp", help="Optional path to save generated password"),
     log_level: str = typer.Option("WARNING", "--log-level", "-ll", help=f"Logging level, one of {LOG_LEVELS}"),
 ):
@@ -54,7 +53,7 @@ def genkey_command(
     logger.info(f"Private key saved to {private_path}")
     logger.info(f"Public key saved to {public_path}")
 
-    if not password and saved_password and show_password:
+    if not password and saved_password and not no_show_password:
         typer.secho("Generated password (save it securely):", fg="yellow")
         typer.secho(saved_password, fg="green", bold=True)
 
@@ -81,10 +80,10 @@ def encrypt_command(
         None, "--public-key-path", "-pubkp", help="Where to save public key PEM if keys are generated"
     ),
     password: Optional[str] = typer.Option(None, "--password", "-p", help="Password to protect private key PEM"),
-    show_password: bool = typer.Option(True, "--show-password", "-sp", help="Show generated password in terminal if none provided"),
+    no_show_password: bool = typer.Option(False, "--no-show-password", "-nsp", help="No show generated password in terminal after auto gen if none is provided"),
     password_path: Optional[Path] = typer.Option(None, "--password-path", "-pp", help="Optional path to save generated password"),
     output_file: Path = typer.Option(..., "--output-file", "-of", help="Where to save encrypted payload JSON"),
-    key_output_dir: Path = typer.Option(Path("secrets"), "--key-output-dir", "-kod", help="Directory to save keys if generated"),
+    key_output_dir: Path = typer.Option(Path("secrets"), "--key-output-dir", "-kod", help="Directory to save keys if paths not provided"),
     log_level: str = typer.Option("WARNING", "--log-level", "-ll", help=f"Logging level, one of {LOG_LEVELS}"),
 ):
     setup_logging(log_level)
@@ -115,33 +114,24 @@ def encrypt_command(
         logger.info(f"Encrypted using provided public key.")
 
     else:
-        logger.info("No public key provided. Generating new RSA key pair via genkey_command.")
+        logger.info("No public key provided. Generating new RSA key pair via genkeygenkey_command.")
         secrets_dir = key_output_dir
         secrets_dir.mkdir(parents=True, exist_ok=True)
 
         hash_id = hashlib.sha256(data[:16]).hexdigest()[:8]
+
         if not private_key_path:
             private_key_path = secrets_dir / f"private_{hash_id}.pem"
         if not public_key_path:
             public_key_path = secrets_dir / f"public_{hash_id}.pem"
 
-        class DummyTyper:
-            def __init__(self):
-                self.private_path = private_key_path
-                self.public_path = public_key_path
-                self.password = password
-                self.show_password = show_password
-                self.password_path = password_path
-                self.log_level = log_level
-
-        args = DummyTyper()
         saved_password = genkey_command(
-            private_path=args.private_path,
-            public_path=args.public_path,
-            password=args.password,
-            show_password=args.show_password,
-            password_path=args.password_path,
-            log_level=args.log_level
+            private_path=private_key_path,
+            public_path=public_key_path,
+            password=password,
+            no_show_password=no_show_password,
+            password_path=password_path,
+            log_level=log_level,
         )
 
         with open(private_key_path, "rb") as f:
