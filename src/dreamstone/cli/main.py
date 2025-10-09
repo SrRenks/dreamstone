@@ -64,7 +64,6 @@ def genkey_command(
 ):
     setup_logging(log_level)
 
-    # Resolve paths
     priv_path = Path(private_key) if private_key else Path("private_key.pem")
     pub_path = Path(public_key) if public_key else Path("public_key.pem")
 

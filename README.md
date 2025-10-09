@@ -46,8 +46,8 @@ Generate an RSA key pair with optional password protection for the private key.
 
 ```bash
 dreamstone genkey \
-  --private-path private.pem \
-  --public-path public.pem \
+  --private-key private.pem \
+  --public-key public.pem \
   --password "mypassword" \
   --password-path secret.key
 ```
@@ -56,11 +56,13 @@ dreamstone genkey \
 
 | Argument             | Alias   | Required | Description                                                     |
 | -------------------- | ------- | -------- | --------------------------------------------------------------- |
-| `--private-path`     | `-prip` | ✅        | Path to save private key                                        |
-| `--public-path`      | `-pubp` | ✅        | Path to save public key                                         |
-| `--password`         | `-p`    | ❌        | Password to encrypt the private key (auto-generated if omitted) |
-| `--no-show-password` | `-nsp`  | ❌        | Do not show auto-generated password in terminal                 |
-| `--password-path`    | `-pp`   | ❌        | File path to save auto-generated password                       |
+| `--private-key`      | `-pv`   | true     | Path to save private key                                        |
+| `--public-key`       | `-pb`   | true     | Path to save public key                                         |
+| `--password`         | `-p`    | false    | Password to encrypt the private key (auto-generated if omitted) |
+| `--no-show-password` | `-nsp`  | false    | Do not show auto-generated password in terminal                 |
+| `--password-path`    | `-pp`   | false    | File path to save auto-generated password                       |
+| `--overwrite`        | `-f`    | false    | Overwrite existing keys without asking                          |
+| `--log-level`        | `-ll`   | false    | Logging level (`CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG`) |
 
 **Notes:**
 
@@ -75,50 +77,48 @@ Encrypt data from a file or directly from a base64 string using a public key. If
 
 ```bash
 dreamstone encrypt \
-  --input-file secret.txt \
-  --public-key-file public.pem \
-  --output-file encrypted.json
+  secret.txt \
+  --out encrypted.json \
+  --public-key public.pem
 ```
 
 ### Encrypting Base64 Data
 
 ```bash
 dreamstone encrypt \
-  --input-data "SGVsbG8gd29ybGQ=" \
+  "SGVsbG8gd29ybGQ=" \
   --base64 \
-  --output-file encrypted.json
+  --out encrypted.json
 ```
 
 ### Encrypting Without Providing Keys
 
 ```bash
 dreamstone encrypt \
-  --input-file secret.txt \
-  --output-file encrypted.json \
-  --key-output-dir secrets \
+  secret.txt \
+  --out encrypted.json \
   --password-path secrets/secret.key
 ```
 
-This will generate a new RSA key pair and save it in the specified directory.
+This will generate a new RSA key pair and save it in the default directory.
 
 ### Arguments
 
-| Argument             | Alias    | Required | Description                                     |
-| -------------------- | -------- | -------- | ----------------------------------------------- |
-| `--input-file`       | `-if`    | ✅        | Path to the file to encrypt                     |
-| `--input-data`       | `-id`    | ✅        | Raw data to encrypt (use `--base64` if encoded) |
-| `--base64`           | `-b64`   | ❌        | Indicates input is base64-encoded               |
-| `--public-key-file`  | `-pkf`   | ❌        | Public key PEM file (auto-generated if omitted) |
-| `--private-key-path` | `-prikp` | ❌        | Path to save private key if generating new keys |
-| `--public-key-path`  | `-pubkp` | ❌        | Path to save public key if generating new keys  |
-| `--password`         | `-p`     | ❌        | Password for generated private key              |
-| `--password-path`    | `-pp`    | ❌        | File path to save password                      |
-| `--output-file`      | `-of`    | ✅        | Path to save encrypted JSON payload             |
-| `--key-output-dir`   | `-kod`   | ❌        | Directory to save keys if paths not provided    |
+| Argument             | Alias  | Required | Description                                     |
+| -------------------- | ------ | -------- | ----------------------------------------------- |
+| `input`              | -      | true     | Input string or path to file to encrypt         |
+| `--out`              | `-o`   | true     | Path to save encrypted JSON payload             |
+| `--base64`           | `-b64` | false    | Indicates input is base64-encoded               |
+| `--public-key`       | `-pv`  | false    | Public key PEM file (auto-generated if omitted) |
+| `--private-key`      | `-pb`  | false    | Path to private key PEM (used or to be created) |
+| `--password`         | `-p`   | false    | Password for generated private key              |
+| `--password-path`    | `-pp`  | false    | File path to save password                      |
+| `--no-show-password` | `-nsp` | false    | Do not show auto-generated password             |
+| `--log-level`        | `-ll`  | false    | Logging level                                   |
 
 **Behavior:**
 
-* If both `--input-file` and `--input-data` are provided, the command will fail.
+* If input is a directory, the command fails.
 * Encrypted output is stored in JSON format with fields for `encrypted_key`, `nonce`, `ciphertext`, and metadata.
 
 ## Decryption (`decrypt` / `dec`)
@@ -130,9 +130,9 @@ Decrypt a JSON payload using a private key. Passwords can be provided inline or 
 ```bash
 dreamstone decrypt \
   encrypted.json \
-  --private-key-file private.pem \
+  --private-key private.pem \
   --password "mypassword" \
-  --output-file decrypted.txt
+  --out decrypted.txt
 ```
 
 ### Example Using Password File
@@ -140,24 +140,24 @@ dreamstone decrypt \
 ```bash
 dreamstone decrypt \
   encrypted.json \
-  --private-key-file private.pem \
+  --private-key private.pem \
   --password-path secret.key \
-  --output-file decrypted.txt
+  --out decrypted.txt
 ```
 
 ### Arguments
 
-| Argument             | Alias  | Required | Description                     |
-| -------------------- | ------ | -------- | ------------------------------- |
-| `encrypted_file`     | -      | ✅        | Path to the encrypted JSON file |
-| `--private-key-file` | `-pkf` | ✅        | Private key PEM file            |
-| `--password`         | `-p`   | ❌        | Password to decrypt private key |
-| `--password-path`    | `-pp`  | ❌        | File containing password        |
-| `--output-file`      | `-of`  | ❌        | File to save decrypted output   |
+| Argument          | Alias  | Required | Description                     |
+| ----------------- | ------ | -------- | ------------------------------- |
+| `payload`         | -      | true     | Path to the encrypted JSON file |
+| `--private-key`   | `-pv`  | true     | Private key PEM file            |
+| `--password`      | `-p`   | false    | Password to decrypt private key |
+| `--password-path` | `-pp`  | false    | File containing password        |
+| `--out`           | `-o`   | false    | File to save decrypted output   |
 
 **Behavior:**
 
-* If `--output-file` is omitted, decrypted data is printed to stdout.
+* If `--out` is omitted, decrypted data is printed to stdout.
 * Automatically handles both text and binary outputs.
 
 ## Encrypted JSON Payload Format
@@ -173,8 +173,6 @@ All encrypted outputs follow a structured JSON format:
   "key_type": "RSA"
 }
 ```
-
-This format allows easy serialization, storage, and transmission of encrypted data.
 
 ## Python Library Usage
 
@@ -232,8 +230,8 @@ decrypted = decrypt(
 
 ```bash
 poetry run dreamstone genkey \
-  --private-path secrets/private.pem \
-  --public-path secrets/public.pem \
+  --private-key secrets/private.pem \
+  --public-key secrets/public.pem \
   --password-path secrets/secret.key
 ```
 
@@ -241,10 +239,10 @@ poetry run dreamstone genkey \
 
 ```bash
 poetry run dreamstone encrypt \
-  --input-file .env \
-  --output-file env.enc.json \
-  --private-key-path secrets/private.pem \
-  --public-key-path secrets/public.pem \
+  .env \
+  --out env.enc.json \
+  --private-key secrets/private.pem \
+  --public-key secrets/public.pem \
   --password-path secrets/secret.key
 ```
 
@@ -253,9 +251,9 @@ poetry run dreamstone encrypt \
 ```bash
 poetry run dreamstone decrypt \
   env.enc.json \
-  --private-key-file secrets/private.pem \
+  --private-key secrets/private.pem \
   --password-path secrets/secret.key \
-  --output-file .env
+  --out .env
 ```
 
 ## Logging
